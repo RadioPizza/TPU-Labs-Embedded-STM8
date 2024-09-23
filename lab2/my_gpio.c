@@ -1,3 +1,4 @@
+#include <my_gpio.h>
 #include <iostm8s207.h>
 
 void delay(unsigned int ms)
@@ -5,12 +6,19 @@ void delay(unsigned int ms)
     unsigned long count;
     while (ms > 0)
     {
-        count = 16000; // Эмпирически настроенные значения для задержки примерно 1 мс
+        count = 50;
         while (count > 0)
         {
             count--;
         }
         ms--;
+    }
+}
+
+void delay10Microseconds(unsigned int us) {
+    while (us > 0) {
+        _asm("nop");
+        us--;
     }
 }
 
@@ -30,16 +38,16 @@ void pinMode(char port, int pin, int mode)
         CR1 = &PB_CR1;
         break;
     default:
-        return; // Неподдерживаемый порт
+        return;
     }
 
     if (mode == 1)
-    { // 1 для OUTPUT
+    {
         *DDR |= (1 << pin);
         *CR1 |= (1 << pin);
     }
     else
-    { // 0 для INPUT
+    {
         *DDR &= ~(1 << pin);
         *CR1 &= ~(1 << pin);
     }
@@ -58,7 +66,7 @@ void digitalWrite(char port, int pin, int value)
         ODR = &PB_ODR;
         break;
     default:
-        return; // Неподдерживаемый порт
+        return;
     }
 
     if (value == 1)
@@ -71,6 +79,24 @@ void digitalWrite(char port, int pin, int value)
     }
 }
 
-void PWM(char port, int pin, int duty) {
+const int PWM_FREQ = 1000; // Hz
+const int PWM_PERIOD_MICROS = 1000000 / PWM_FREQ;
 
-};
+void analogWrite(char port, int pin, int dutyCycle) {
+		unsigned int onTimeMicros = (dutyCycle * PWM_PERIOD_MICROS) / 255;
+    unsigned int offTimeMicros = PWM_PERIOD_MICROS - onTimeMicros;
+    volatile unsigned char* ODR;
+    switch (port) {
+        case 'A': ODR = &PA_ODR; break;
+        case 'B': ODR = &PB_ODR; break;
+        default: return;
+    }
+    while (1) {
+        *ODR |= (1 << pin);
+        delay10Microseconds(onTimeMicros/10);
+        
+        *ODR &= ~(1 << pin);
+        delay10Microseconds(offTimeMicros/10);
+    }
+}
+
