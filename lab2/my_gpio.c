@@ -37,6 +37,34 @@ void pinMode(char port, int pin, int mode)
         DDR = &PB_DDR;
         CR1 = &PB_CR1;
         break;
+    case 'C':
+        DDR = &PC_DDR;
+        CR1 = &PC_CR1;
+        break;
+    case 'D':
+        DDR = &PD_DDR;
+        CR1 = &PD_CR1;
+        break;
+    case 'E':
+        DDR = &PE_DDR;
+        CR1 = &PE_CR1;
+        break;
+    case 'F':
+        DDR = &PF_DDR;
+        CR1 = &PF_CR1;
+        break;
+    case 'G':
+        DDR = &PG_DDR;
+        CR1 = &PG_CR1;
+        break;
+    case 'H':
+        DDR = &PH_DDR;
+        CR1 = &PH_CR1;
+        break;
+    case 'I':
+        DDR = &PI_DDR;
+        CR1 = &PI_CR1;
+        break;
     default:
         return;
     }
@@ -65,6 +93,27 @@ void digitalWrite(char port, int pin, int value)
     case 'B':
         ODR = &PB_ODR;
         break;
+    case 'C':
+        ODR = &PC_ODR;
+        break;
+    case 'D':
+        ODR = &PD_ODR;
+        break;
+    case 'E':
+        ODR = &PE_ODR;
+        break;
+    case 'F':
+        ODR = &PF_ODR;
+        break;
+    case 'G':
+        ODR = &PG_ODR;
+        break;
+    case 'H':
+        ODR = &PG_ODR;
+        break;
+    case 'I':
+        ODR = &PG_ODR;
+        break;
     default:
         return;
     }
@@ -78,25 +127,3 @@ void digitalWrite(char port, int pin, int value)
         *ODR &= ~(1 << pin);
     }
 }
-
-const int PWM_FREQ = 1000; // Hz
-const int PWM_PERIOD_MICROS = 1000000 / PWM_FREQ;
-
-void analogWrite(char port, int pin, int dutyCycle) {
-		unsigned int onTimeMicros = (dutyCycle * PWM_PERIOD_MICROS) / 255;
-    unsigned int offTimeMicros = PWM_PERIOD_MICROS - onTimeMicros;
-    volatile unsigned char* ODR;
-    switch (port) {
-        case 'A': ODR = &PA_ODR; break;
-        case 'B': ODR = &PB_ODR; break;
-        default: return;
-    }
-    while (1) {
-        *ODR |= (1 << pin);
-        delay10Microseconds(onTimeMicros/10);
-        
-        *ODR &= ~(1 << pin);
-        delay10Microseconds(offTimeMicros/10);
-    }
-}
-
