@@ -288,6 +288,7 @@ main()
 ```
 
 30.
+```cpp
 #include <my_gpio.h>
 #include <iostm8s207.h>
 #define LED1 'A', 1
@@ -320,3 +321,4 @@ void main() {
 			t_2 = 0;
 	}
 }
+```
