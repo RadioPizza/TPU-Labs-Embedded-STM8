@@ -1,6 +1,5 @@
 // my_gpio v2
 #include <my_gpio.h>
-#include <iostm8s207.h>
 
 #define INPUT		0
 #define OUTPUT	1
@@ -19,8 +18,10 @@ void delay(unsigned int ms)
     }
 }
 
-void delayMicroseconds() {
+void delay10Microseconds(unsigned int us) {
+    while (us > 0) {
         _asm("nop");
+        us--;
     }
 }
 
