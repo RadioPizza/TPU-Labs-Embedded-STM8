@@ -20,19 +20,7 @@ void LCD_strobe(void){
     delay10Microseconds(1);
 }
 
-void LCD_setPage(int chip, int page){
-    unsigned char command;
-    // Validate page number
-    page &= 0x07;
-
-    // Construct command
-    command = 0b10111000 | page;
-
-    // Set control lines for command write
-    *CONTROL_PORT &= ~LCD_A0;
-    *CONTROL_PORT &= ~LCD_RW;
-
-    // Select the appropriate chip
+void LCD_selectChip(int chip){
     if (chip == 1) {
         *CONTROL_PORT |= LCD_E1;
         *CONTROL_PORT &= ~LCD_E2;
@@ -40,8 +28,18 @@ void LCD_setPage(int chip, int page){
         *CONTROL_PORT &= ~LCD_E1;
         *CONTROL_PORT |= LCD_E2;
     }
+}
 
+void LCD_setPage(int page){
+    unsigned char command;
+    // Validate page number
+    page &= 0x07;
+    // Construct command
+    command = 0b10111000 | page;
+    // Set control lines for command write
+    *CONTROL_PORT &= ~LCD_A0;
+    *CONTROL_PORT &= ~LCD_RW;
+    // Write command
     *DATA_PORT = command;
     LCD_strobe();
-    *CONTROL_PORT &= ~(LCD_E1 | LCD_E2);
 }
