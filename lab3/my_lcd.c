@@ -105,3 +105,15 @@ void LCD_drawRectangle(){
     }
     LCD_writeData(0x7E);
 }
+
+void LCD_drawLetterA(){
+    unsigned char letterM_data[5] = {0xF8, 0x16, 0x11, 0x16, 0xF8};
+    int i;
+    LCD_selectChip(1);
+    LCD_setPage(2);
+    LCD_setAddress(4);
+    for(i = 0; i < 5; i++){
+        // Write each column of the letter
+        LCD_writeData(letterM_data[i]);
+    }
+}
