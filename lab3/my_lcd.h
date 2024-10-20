@@ -1,7 +1,9 @@
-// my_lcd v1
+// my_lcd.h v1
 #ifndef MY_LCD_H
 #define MY_LCD_H
 #include <my_gpio.h>
+#include <string.h>
+
 // LCD
 #define DATA_PORT &PB_ODR
 #define CONTROL_PORT &PF_ODR
