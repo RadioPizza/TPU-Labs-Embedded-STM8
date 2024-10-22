@@ -117,3 +117,15 @@ void LCD_drawLetterA(){
         LCD_writeData(letterM_data[i]);
     }
 }
+
+void LCD_task20{
+    unsigned chat picture_data[7] = {0x, 0x, 0x, 0x, 0x, 0x, 0x, 0x};
+    LCD_selectChip(2);
+    LCD_setPage(8);
+    LCD_setAddress(0);
+    for(i = 0; i < 7, i++){
+        LCD_writeData(picture_data[i]);
+    }
+
+
+}

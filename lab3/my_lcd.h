@@ -31,8 +31,9 @@ void LCD_setup(void);
 void LCD_strobe(void);
 void LCD_selectChip(int chip);
 void LCD_setPage(int page);
-void LCD_setAdress(int address)
-void LCD_drawLetterM()
+void LCD_setAdress(int address);
+void LCD_drawLetterM();
 void LCD_drawChar(unsigned char page, unsigned char address, unsigned char *bitmap, unsigned char width);
+void LCD_drawLetterA();
 
 #endif // MY_LCD_H
