@@ -78,7 +78,7 @@ void LCD_drawLetterM(){
         LCD_writeData(letterM_data[i]);
     }
 }
-
+/*
 void LCD_drawChar(unsigned char page, unsigned char address, unsigned char *bitmap, unsigned char width){
     int i;
     if(address < 64){
@@ -129,3 +129,4 @@ void LCD_task20{
 
 
 }
+*/
