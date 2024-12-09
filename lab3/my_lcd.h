@@ -1,7 +1,7 @@
-// my_lcd.h v1
+// my_lcd.h
 #ifndef MY_LCD_H
 #define MY_LCD_H
-#include <my_gpio.h>
+#include "iostm8s207.h"
 
 // LCD
 #define DATA_PORT &PB_ODR
@@ -33,9 +33,5 @@ void LCD_selectChip(int chip);
 void LCD_setPage(int page);
 void LCD_setAdress(int address);
 void LCD_writeData(unsigned char data);
-void LCD_drawLetterM(void);
-/*
-void LCD_drawChar(unsigned char page, unsigned char address, unsigned char *bitmap, unsigned char width);
-void LCD_drawLetterA();
-*/
+
 #endif // MY_LCD_H
