@@ -3,26 +3,36 @@
 
 // Макросы для удобства
 #define ALL_PINS 0xFF         // "1" для всех пинов порта
-#define TURN_ON_COMMAND 0x3F  // Включить дисплей
-#define TURN_OFF_COMMAND 0x3E // Выключить дисплей
+#define TURN_ON_COMMAND 0x3F  // Команда вкл. дисплея
+#define TURN_OFF_COMMAND 0x3E // Команда выкл. дисплея
+
+// Макросы для переключения режимов
+#define LCD_DATA_MODE()   (PF_ODR |= LCD_A0)  // Переключение в режим данных (A0 = 1)
+#define LCD_CMD_MODE()    (PF_ODR &= ~LCD_A0) // Переключение в режим команд (A0 = 0)
+
+// Макросы для управления стробами E1 и E2
+#define LCD_ENABLE_E1()   (PF_ODR |= LCD_E1)  // Включить E1
+#define LCD_DISABLE_E1()  (PF_ODR &= ~LCD_E1) // Отключить E1
+#define LCD_ENABLE_E2()   (PF_ODR |= LCD_E2)  // Включить E2
+#define LCD_DISABLE_E2()  (PF_ODR &= ~LCD_E2) // Отключить E2
 
 // Пины ЖК дисплея
 // Port B
-#define LCD_D0 (1 << 0)
-#define LCD_D1 (1 << 1)
-#define LCD_D2 (1 << 2)
-#define LCD_D3 (1 << 3)
-#define LCD_D4 (1 << 4)
-#define LCD_D5 (1 << 5)
-#define LCD_D6 (1 << 6)
-#define LCD_D7 (1 << 7)
+#define LCD_D0  (1 << 0)
+#define LCD_D1  (1 << 1)
+#define LCD_D2  (1 << 2)
+#define LCD_D3  (1 << 3)
+#define LCD_D4  (1 << 4)
+#define LCD_D5  (1 << 5)
+#define LCD_D6  (1 << 6)
+#define LCD_D7  (1 << 7)
 // Port F
-#define LCD_E1 (1 << 0)
-#define LCD_E2 (1 << 3)
+#define LCD_E1  (1 << 0)
+#define LCD_E2  (1 << 3)
 #define LCD_RES (1 << 4)
-#define LCD_RW (1 << 5)
-#define LCD_A0 (1 << 6)
-#define LCD_E (1 << 7)
+#define LCD_RW  (1 << 5)
+#define LCD_A0  (1 << 6)
+#define LCD_E   (1 << 7)
 
 // Функция задержки, реализующая задержку в миллисекундах.
 // Использует вложенный цикл для создания временной паузы.
@@ -61,15 +71,48 @@ void LCD_init(void)
     
     // Инициализация управляющих сигналов
     PF_ODR &= ~LCD_E;  // Строб E в низкий уровень
-    PF_ODR &= ~LCD_A0; // Сигнал A0 (Data/Command) в низкий уровень
+    LCD_CMD_MODE();
     PF_ODR &= ~LCD_RW; // Сигнал RW (Read/Write) в низкий уровень (режим записи)
 
     // Включение обоих кристаллов (E1 и E2)
-    PF_ODR |= (LCD_E1 | LCD_E2); // Устанавливаем E1 и E2 в высокий уровень
+    LCD_ENABLE_E1();
+    LCD_ENABLE_E2();
 
     // Отправка команды включения дисплея
     PB_ODR = TURN_ON_COMMAND; // Устанавливаем команду на шину данных
     LCD_strobe();             // Фиксируем команду на дисплее
+}
+
+// Функция для отрисовки буквы "M" на дисплее
+void LCD_drawLetterM(void)
+{
+    // Включение первого контроллера дисплея (E1) и отключение второго (E2)
+    LCD_ENABLE_E1();
+    LCD_DISABLE_E2();
+
+    // Установка страницы (Page 0)
+    LCD_CMD_MODE();       // Переключение в режим команд
+    PB_ODR = 0b10111111;  // Команда выбора страницы (Page 0)
+    LCD_strobe();         // Фиксируем команду
+
+    // Установка начального столбца (Column 0)
+    PB_ODR = 0b01000111;  // Команда выбора столбца (Column 0)
+    LCD_strobe();         // Фиксируем команду
+
+    // Переключение в режим данных (A0 = 1)
+    LCD_DATA_MODE();
+
+    // Отрисовка буквы "M" по столбцам слева направо
+    PB_ODR = 0b01111111;
+    LCD_strobe();
+    PB_ODR = 0b00000010;
+    LCD_strobe();
+    PB_ODR = 0b00000100;
+    LCD_strobe();
+    PB_ODR = 0b00000010;
+    LCD_strobe();
+    PB_ODR = 0b01111111;
+    LCD_strobe();
 }
 
 // Главная функция программы (точка входа)
@@ -86,4 +129,7 @@ void main()
 
     // Инициализация ЖК дисплея
     LCD_init();
+
+    // Отрисовка буквы "M"
+    LCD_drawLetterM();
 }
