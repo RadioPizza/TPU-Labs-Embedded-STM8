@@ -125,7 +125,7 @@ void LCD_drawLetterM(void)
     LCD_strobe();
 }
 
-// Функция для отрисовки прямоугольника 6x20 на дисплее
+// Функция для отрисовки прямоугольника 6x55 на дисплее
 void LCD_drawRectangle(void)
 {
     uint8_t col;
@@ -149,8 +149,8 @@ void LCD_drawRectangle(void)
     PB_ODR = 0b01111110; // Левая сторона прямоугольника
     LCD_strobe();
 
-    // Внутренние столбцы (18 раз)
-    for (col = 2; col < 20; col++) {
+    // Внутренние столбцы (53 раза)
+    for (col = 2; col < 55; col++) {
         PB_ODR = 0b01000010; // Внутренний столбец (верх и низ)
         LCD_strobe();
     }
