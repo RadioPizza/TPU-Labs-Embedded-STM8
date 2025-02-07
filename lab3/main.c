@@ -1,3 +1,4 @@
+#include <stdlib.h>     // Для использования функции abs(x)
 #include <stdint.h>     // Для использования стандартных типов
 #include <iostm8s207.h> // Для удобного обращения к регистрам переферии
 
@@ -43,6 +44,11 @@
 // Макросы для выбора страницы и столбца
 #define LCD_SET_PAGE(page) (PB_ODR = (0b10111000 | ((page) & 0b00000111))) // Выбор страницы
 #define LCD_SET_COLUMN(column) (PB_ODR = (0b01000000 | ((column) & 0b00111111))) // Выбор столбца
+
+#define LCD_PAGES 8       // Количество страниц (8 страниц по 8 строк)
+#define LCD_COLUMNS 128   // Количество столбцов (128 столбцов)
+
+uint8_t displayBuffer[LCD_PAGES][LCD_COLUMNS]; // Буфер для хранения данных дисплея
 
 // Функция задержки, реализующая задержку в миллисекундах.
 // Использует вложенный цикл для создания временной паузы.
@@ -292,6 +298,174 @@ void LCD_clearLetterArea(uint8_t startColumn)
     }
 }
 
+// Функция для очистки буфера
+void LCD_clearBuffer(void)
+{
+    uint8_t page, column;
+
+    for (page = 0; page < LCD_PAGES; page++) {
+        for (column = 0; column < LCD_COLUMNS; column++) {
+            displayBuffer[page][column] = 0; // Очистка буфера
+        }
+    }
+}
+
+// Функция для обновления экрана из буфера
+void LCD_updateDisplay(void)
+{
+    uint8_t page, column;
+
+    for (page = 0; page < LCD_PAGES; page++) {
+        // Обновление левой половины экрана (E1, столбцы 0–63)
+        LCD_ENABLE_E1();  // Включить кристалл 1
+        LCD_DISABLE_E2(); // Отключить кристалл 2
+
+        // Установка страницы
+        LCD_CMD_MODE();       // Переключение в режим команд
+        LCD_SET_PAGE(page);   // Выбор страницы
+        LCD_strobe();         // Фиксируем команду
+
+        // Установка начального столбца (Column 0)
+        LCD_SET_COLUMN(0);    // Выбор столбца 0
+        LCD_strobe();         // Фиксируем команду
+
+        // Переключение в режим данных
+        LCD_DATA_MODE();
+
+        // Отправка данных для левой половины (столбцы 0–63)
+        for (column = 0; column < 64; column++) {
+            PB_ODR = displayBuffer[page][column]; // Отправляем данные из буфера
+            LCD_strobe();
+        }
+
+        // Обновление правой половины экрана (E2, столбцы 64–127)
+        LCD_ENABLE_E2();  // Включить кристалл 2
+        LCD_DISABLE_E1(); // Отключить кристалл 1
+
+        // Установка страницы
+        LCD_CMD_MODE();       // Переключение в режим команд
+        LCD_SET_PAGE(page);   // Выбор страницы
+        LCD_strobe();         // Фиксируем команду
+
+        // Установка начального столбца (Column 0)
+        LCD_SET_COLUMN(0);    // Выбор столбца 0
+        LCD_strobe();         // Фиксируем команду
+
+        // Переключение в режим данных
+        LCD_DATA_MODE();
+
+        // Отправка данных для правой половины (столбцы 64–127)
+        for (column = 64; column < LCD_COLUMNS; column++) {
+            PB_ODR = displayBuffer[page][column]; // Отправляем данные из буфера
+            LCD_strobe();
+        }
+    }
+}
+
+// Функция для отрисовки пикселя в буфере
+void LCD_drawPixel(uint8_t x, uint8_t y, uint8_t value)
+{
+    uint8_t page, bit;
+
+    if (x >= LCD_COLUMNS || y >= LCD_PAGES * 8) {
+        return; // Выход за пределы экрана
+    }
+
+    // Определяем страницу и бит
+    page = y / 8; // Страница (каждая страница управляет 8 строками)
+    bit = y % 8;  // Бит в столбце
+
+    // Установка или сброс бита
+    if (value) {
+        displayBuffer[page][x] |= (1 << bit);  // Установка бита
+    } else {
+        displayBuffer[page][x] &= ~(1 << bit); // Сброс бита
+    }
+}
+
+// Отрисовка горизонтальной линии
+void lineH(int y, int x0, int x1, uint8_t fill)
+{
+    int x;
+
+    // Убедимся, что x0 <= x1
+    if (x0 > x1) {
+        int temp = x0;
+        x0 = x1;
+        x1 = temp;
+    }
+
+    // Отрисовка линии
+    for (x = x0; x <= x1; x++) {
+        LCD_drawPixel(x, y, fill);
+    }
+}
+
+// Отрисовка вертикальной линии
+void lineV(int x, int y0, int y1, uint8_t fill)
+{
+    int y;
+
+    // Убедимся, что y0 <= y1
+    if (y0 > y1) {
+        int temp = y0;
+        y0 = y1;
+        y1 = temp;
+    }
+
+    // Отрисовка линии
+    for (y = y0; y <= y1; y++) {
+        LCD_drawPixel(x, y, fill);
+    }
+}
+
+// Отрисовка линии под любым углом (алгоритм Брезенхэма)
+void line(int x0, int y0, int x1, int y1, uint8_t fill)
+{
+    int dx, dy, sx, sy, err, e2;
+
+    // Проверка на горизонтальную линию
+    if (x0 == x1) {
+        lineV(x0, y0, y1, fill);
+        return;
+    }
+
+    // Проверка на вертикальную линию
+    if (y0 == y1) {
+        lineH(y0, x0, x1, fill);
+        return;
+    }
+
+    // Вычисление разницы и направления
+    dx = abs(x1 - x0);
+    dy = abs(y1 - y0);
+    sx = (x0 < x1) ? 1 : -1;
+    sy = (y0 < y1) ? 1 : -1;
+    err = dx - dy;
+
+    // Отрисовка линии
+    while (1) {
+        LCD_drawPixel(x0, y0, fill);
+
+        // Проверка на завершение
+        if (x0 == x1 && y0 == y1) {
+            break;
+        }
+
+        e2 = err << 1;
+
+        if (e2 > -dy) {
+            err -= dy;
+            x0 += sx;
+        }
+
+        if (e2 < dx) {
+            err += dx;
+            y0 += sy;
+        }
+    }
+}
+
 // Главная функция программы (точка входа)
 void main()
 {
@@ -309,31 +483,21 @@ void main()
     // Инициализация ЖК дисплея
     LCD_init();
 
-    // Включение кристалла 1 (E1) и отключение кристалла 2 (E2)
-    LCD_ENABLE_E1();
-    LCD_DISABLE_E2();
+    // Очистка буфера
+    LCD_clearBuffer();
 
-    // Установка страницы (Page 1)
-    LCD_CMD_MODE();       // Переключение в режим команд
-    LCD_SET_PAGE(1);      // Выбор страницы 1
-    LCD_strobe();         // Фиксируем команду
+    // Отрисовка веера линий для теста
 
-    // Основной цикл программы
-    while (1)
-    {
-        // Очистка области буквы "А"
-        LCD_clearLetterArea(startColumn);
-
-        // Отрисовка буквы "А" на новом месте
-        LCD_drawLetterAAtColumn(startColumn + 1);
-
-        // Задержка для контроля скорости движения
-        delay(100); // Подбери значение для удобного визуального контроля
-
-        // Сдвиг начального столбца
-        startColumn ++;
-        if (startColumn > 63) { // Если дошли до последнего столбца
-            startColumn = 0;    // Возвращаемся в начало
-        }
+    // Рисуем линии от (0, 0) к точкам на правой границе дисплея
+    for (int y = 0; y < 64; y += 8) {
+        line(0, 0, 127, y, 1);
     }
+
+    // Рисуем линии от (0, 0) к точкам на нижней границе дисплея
+    for (int x = 0; x < 128; x += 8) {
+        line(0, 0, x, 63, 1);
+    }
+
+    // Обновление экрана
+    LCD_updateDisplay();
 }

@@ -1738,6 +1738,8 @@ void main()
 
 # пункт 26
 
+Для создания буфера такого размера пришлось изменить настройки проекта (Settings -> C Compiler -> Memory Models: Long Stack (+modsl0))
+
 ```C
 
 ```
