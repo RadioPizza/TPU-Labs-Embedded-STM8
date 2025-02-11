@@ -1,6 +1,14 @@
 #include "main.h"
 
+#define LED_PORT PG
+#define LED_PIN  0
+
 #define IS_TIMER_OVERFLOW() (TIM1_SR1 & (1 << 0))
+
+#define PWM_PERIOD 200              // Период программного ШИМ
+volatile uint8_t pwm_counter = 0;   // Счётчик тактов ШИМ (0 .. PWM_PERIOD-1)
+volatile uint8_t pwm_value   = 0;   // Текущее значение скважности (0 .. PWM_PERIOD)
+volatile int8_t  direction   = 1;   // Направление изменения: +1 - увеличение, -1 - уменьшение
 
 /**
  * @brief Задержка в микросекундах с использованием таймера TIM1.
@@ -47,10 +55,28 @@ void delay_ms(uint16_t ms)
  */
 @far @interrupt void TIM1_IRQHandler(void)
 {
-    // Инверсия состояния: если бит 0 установлен, сбрасываем его, иначе – устанавливаем.
-    PG_ODR ^= (1 << 0);     // Инверсия нулевого пина порта G
-
-    TIM1_SR1 &= ~(1 << 0);  // Очистка флага переполнения (UIF)
+    pwm_counter++;  // Переход к следующему такту ШИМ
+    if (pwm_counter >= PWM_PERIOD)
+    {
+        pwm_counter = 0;
+        
+        // Обновление значения скважности
+        pwm_value += direction;
+        if ((pwm_value == PWM_PERIOD) || (pwm_value == 0))
+        {
+            direction = -direction;
+        }
+    }
+    
+    // Генерация программного ШИМ на PG0
+    if (pwm_counter < pwm_value)
+    {
+        PG_ODR = 0x01;
+    }
+    else
+    {
+        PG_ODR = 0x00;
+    }
 }
 
 /**
@@ -58,7 +84,7 @@ void delay_ms(uint16_t ms)
  *
  * @param period_us Период переполнения таймера в микросекундах.
  */
-void tim1_init(uint16_t period_us)
+void tim1_init(uint32_t period_us)
 {
     // Для 2 МГц тактирования, делитель 1, такт = 0,5 мкс
     // Для period_us микросекунд, нужно period_us / 0.5 = period_us * 2 такта.
@@ -79,13 +105,14 @@ void tim1_init(uint16_t period_us)
 
 void main(void)
 {
-    // Настройка порта G: настраиваем вывод PG0 для индикации работы таймера.
+    // Настройка порта G: настраиваем вывод PG0 для работы со светодиодом.
     PG_DDR |= (1 << 0);  // PG0 - выход
     PG_CR1 |= (1 << 0);  // PG0 - двухтактный режим (push-pull)
     PG_CR2 |= (1 << 0);  // PG0 - максимальная скорость (10 МГц)
 
     // Инициализируем таймер TIM1 для генерации прерываний каждые 5 мс.
     tim1_init(5000);
+
     // Разрешаем глобальные прерывания (Run Interrupt Mode).
     _asm("rim");
 }
