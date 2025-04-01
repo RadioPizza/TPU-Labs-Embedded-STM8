@@ -42,8 +42,8 @@
 #define LCD_WRITE_MODE()  (PF_ODR &= ~LCD_RW) // Переключение в режим записи (RW = 0)
 
 // Макросы для выбора страницы и столбца
-#define LCD_SET_PAGE(page) (PB_ODR = (0b10111000 | ((page) & 0b00000111))) // Выбор страницы
-#define LCD_SET_COLUMN(column) (PB_ODR = (0b01000000 | ((column) & 0b00111111))) // Выбор столбца
+#define LCD_SET_PAGE(page)      (PB_ODR = (0b10111000 | ((page) & 0b00000111)))     // Выбор страницы
+#define LCD_SET_COLUMN(column)  (PB_ODR = (0b01000000 | ((column) & 0b00111111)))   // Выбор столбца
 
 #define LCD_PAGES 8       // Количество страниц (8 страниц по 8 строк)
 #define LCD_COLUMNS 128   // Количество столбцов (128 столбцов)
@@ -80,15 +80,15 @@ void LCD_strobe(void)
 void LCD_init(void)
 {
     // Сброс дисплея
-    LCD_RESET_ON();     // Устанавливаем сигнал RESET в низкий уровень
-    delay(5);           // Задержка для обеспечения корректного прохождения сигнала сброса
-    LCD_RESET_OFF();    // Устанавливаем сигнал RESET обратно в высокий уровень
-    delay(20);          // Дополнительная задержка после сброса
-    
+    LCD_RESET_ON();  // Устанавливаем сигнал RESET в низкий уровень
+    delay(5);        // Задержка для обеспечения корректного прохождения сигнала сброса
+    LCD_RESET_OFF(); // Устанавливаем сигнал RESET обратно в высокий уровень
+    delay(20);       // Дополнительная задержка после сброса
+
     // Инициализация управляющих сигналов
-    LCD_DISABLE_E();   // Строб E в низкий уровень
+    LCD_DISABLE_E(); // Строб E в низкий уровень
     LCD_CMD_MODE();
-    LCD_WRITE_MODE();  // Сигнал RW (Read/Write) в низкий уровень (режим записи)
+    LCD_WRITE_MODE(); // Сигнал RW (Read/Write) в низкий уровень (режим записи)
 
     // Включение обоих кристаллов (E1 и E2)
     LCD_ENABLE_E1();
@@ -99,6 +99,115 @@ void LCD_init(void)
     LCD_strobe();             // Фиксируем команду на дисплее
 }
 
+// Функция чтения байта из дисплея
+uint8_t LCD_readByte(uint8_t controller)
+{
+    uint8_t data;
+    uint8_t original_ddr = PB_DDR;
+    PB_DDR = 0x00; // Настройка порта B на ввод
+
+    LCD_READ_MODE();
+    LCD_DATA_MODE();
+
+    if (controller == 1)
+    {
+        LCD_ENABLE_E1();
+        LCD_DISABLE_E2();
+    }
+    else
+    {
+        LCD_ENABLE_E2();
+        LCD_DISABLE_E1();
+    }
+
+    PF_ODR |= LCD_E;
+    delay(1);
+    PF_ODR &= ~LCD_E;
+    PF_ODR |= LCD_E;
+    data = PB_IDR;
+    PF_ODR &= ~LCD_E;
+
+    PB_DDR = original_ddr; // Восстановление DDR порта B
+    LCD_WRITE_MODE();
+    LCD_CMD_MODE();
+    return data;
+}
+
+// Установка пикселя напрямую
+void LCD_drawPixelDirect(uint8_t x, uint8_t y)
+{
+    uint8_t page = y / 8;
+    uint8_t bit = y % 8;
+    uint8_t column, controller, data;
+
+    if (x >= LCD_COLUMNS || y >= LCD_PAGES * 8)
+        return;
+
+    if (x < 64)
+    {
+        controller = 1;
+        column = x;
+    }
+    else
+    {
+        controller = 2;
+        column = x - 64;
+    }
+
+    // Установка адреса
+    LCD_CMD_MODE();
+    LCD_WRITE_MODE();
+
+    if (controller == 1)
+    {
+        LCD_ENABLE_E1();
+        LCD_DISABLE_E2();
+    }
+    else
+    {
+        LCD_ENABLE_E2();
+        LCD_DISABLE_E1();
+    }
+
+    LCD_SET_PAGE(page);
+    LCD_strobe();
+    LCD_SET_COLUMN(column);
+    LCD_strobe();
+
+    // Чтение данных
+    LCD_READ_MODE();
+    LCD_DATA_MODE();
+    data = LCD_readByte(controller);
+
+    // Модификация данных
+    data |= (1 << bit);
+
+    // Запись данных
+    LCD_CMD_MODE();
+    LCD_WRITE_MODE();
+    if (controller == 1)
+    {
+        LCD_ENABLE_E1();
+        LCD_DISABLE_E2();
+    }
+    else
+    {
+        LCD_ENABLE_E2();
+        LCD_DISABLE_E1();
+    }
+
+    LCD_SET_PAGE(page);
+    LCD_strobe();
+    LCD_SET_COLUMN(column);
+    LCD_strobe();
+    LCD_DATA_MODE();
+    PB_ODR = data;
+    LCD_strobe();
+
+    LCD_DISABLE_E1();
+    LCD_DISABLE_E2();
+}
+
 // Функция для отрисовки буквы "M" на дисплее
 void LCD_drawLetterM(void)
 {
@@ -107,13 +216,13 @@ void LCD_drawLetterM(void)
     LCD_DISABLE_E2();
 
     // Установка страницы (Page 0)
-    LCD_CMD_MODE();       // Переключение в режим команд
-    LCD_SET_PAGE(0);      // Выбор страницы 0
-    LCD_strobe();         // Фиксируем команду
+    LCD_CMD_MODE();  // Переключение в режим команд
+    LCD_SET_PAGE(0); // Выбор страницы 0
+    LCD_strobe();    // Фиксируем команду
 
     // Установка начального столбца (Column 0)
-    LCD_SET_COLUMN(0);    // Выбор столбца 0
-    LCD_strobe();         // Фиксируем команду
+    LCD_SET_COLUMN(0); // Выбор столбца 0
+    LCD_strobe();      // Фиксируем команду
 
     // Переключение в режим данных (A0 = 1)
     LCD_DATA_MODE();
@@ -141,13 +250,13 @@ void LCD_drawRectangle(void)
     LCD_DISABLE_E2(); // Отключить кристалл 2
 
     // Установка страницы (Page 0)
-    LCD_CMD_MODE();       // Переключение в режим команд
-    LCD_SET_PAGE(0);      // Выбор страницы 0
-    LCD_strobe();         // Фиксируем команду
+    LCD_CMD_MODE();  // Переключение в режим команд
+    LCD_SET_PAGE(0); // Выбор страницы 0
+    LCD_strobe();    // Фиксируем команду
 
     // Установка начального столбца (Column 0)
-    LCD_SET_COLUMN(0);    // Выбор столбца 0
-    LCD_strobe();         // Фиксируем команду
+    LCD_SET_COLUMN(0); // Выбор столбца 0
+    LCD_strobe();      // Фиксируем команду
 
     // Переключение в режим данных (A0 = 1)
     LCD_DATA_MODE();
@@ -157,7 +266,8 @@ void LCD_drawRectangle(void)
     LCD_strobe();
 
     // Внутренние столбцы (63 раза, до конца кристалла)
-    for (col = 1; col < 64; col++) {
+    for (col = 1; col < 64; col++)
+    {
         PB_ODR = 0b01000010; // Внутренний столбец (верх и низ)
         LCD_strobe();
     }
@@ -167,19 +277,20 @@ void LCD_drawRectangle(void)
     LCD_DISABLE_E1(); // Отключить кристалл 1
 
     // Установка страницы (Page 0)
-    LCD_CMD_MODE();       // Переключение в режим команд
-    LCD_SET_PAGE(0);      // Выбор страницы 0
-    LCD_strobe();         // Фиксируем команду
+    LCD_CMD_MODE();  // Переключение в режим команд
+    LCD_SET_PAGE(0); // Выбор страницы 0
+    LCD_strobe();    // Фиксируем команду
 
     // Установка начального столбца (Column 0)
-    LCD_SET_COLUMN(0);    // Выбор столбца 0
-    LCD_strobe();         // Фиксируем команду
+    LCD_SET_COLUMN(0); // Выбор столбца 0
+    LCD_strobe();      // Фиксируем команду
 
     // Переключение в режим данных (A0 = 1)
     LCD_DATA_MODE();
 
     // Отрисовка оставшихся 10 внутренних столбцов
-    for (col = 64; col < 74; col++) {
+    for (col = 64; col < 74; col++)
+    {
         PB_ODR = 0b01000010; // Внутренний столбец (верх и низ)
         LCD_strobe();
     }
@@ -197,13 +308,13 @@ void LCD_drawLetterA(void)
     LCD_DISABLE_E2();
 
     // Установка страницы (Page 1)
-    LCD_CMD_MODE();       // Переключение в режим команд
-    LCD_SET_PAGE(1);      // Выбор страницы 1
-    LCD_strobe();         // Фиксируем команду
+    LCD_CMD_MODE();  // Переключение в режим команд
+    LCD_SET_PAGE(1); // Выбор страницы 1
+    LCD_strobe();    // Фиксируем команду
 
     // Установка начального столбца (Column 0)
-    LCD_SET_COLUMN(0);    // Выбор столбца 0
-    LCD_strobe();         // Фиксируем команду
+    LCD_SET_COLUMN(0); // Выбор столбца 0
+    LCD_strobe();      // Фиксируем команду
 
     // Переключение в режим данных (A0 = 1)
     LCD_DATA_MODE();
@@ -230,20 +341,22 @@ void LCD_drawPattern(void)
     LCD_DISABLE_E1();
 
     // Установка страницы (Page 7)
-    LCD_CMD_MODE();       // Переключение в режим команд
-    LCD_SET_PAGE(7);      // Выбор страницы 7 (если нумерация с 0)
-    LCD_strobe();         // Фиксируем команду
+    LCD_CMD_MODE();  // Переключение в режим команд
+    LCD_SET_PAGE(7); // Выбор страницы 7 (если нумерация с 0)
+    LCD_strobe();    // Фиксируем команду
 
     // Установка начального столбца (Column 0)
-    LCD_SET_COLUMN(0);    // Выбор столбца 0
-    LCD_strobe();         // Фиксируем команду
+    LCD_SET_COLUMN(0); // Выбор столбца 0
+    LCD_strobe();      // Фиксируем команду
 
     // Переключение в режим данных (A0 = 1)
     LCD_DATA_MODE();
 
     // Отрисовка узора
-    for (period = 0; period < 8; period++) { // 8 периодов
-        for (col = 0; col < 8; col++) {      // 8 столбцов в периоде
+    for (period = 0; period < 8; period++)
+    { // 8 периодов
+        for (col = 0; col < 8; col++)
+        {                        // 8 столбцов в периоде
             PB_ODR = (1 << col); // Сдвигаем единицу на col битов влево
             LCD_strobe();
         }
@@ -253,8 +366,8 @@ void LCD_drawPattern(void)
 // Функция для отрисовки буквы "А" на заданном начальном столбце
 void LCD_drawLetterAAtColumn(uint8_t startColumn)
 {
-	// Переключение в режим команд
-	LCD_CMD_MODE();
+    // Переключение в режим команд
+    LCD_CMD_MODE();
 
     // Установка начального столбца
     LCD_SET_COLUMN(startColumn); // Выбор столбца
@@ -281,8 +394,8 @@ void LCD_clearLetterArea(uint8_t startColumn)
 {
     uint8_t c;
 
-	// Переключение в режим команд
-	LCD_CMD_MODE();
+    // Переключение в режим команд
+    LCD_CMD_MODE();
 
     // Установка начального столбца
     LCD_SET_COLUMN(startColumn); // Выбор столбца
@@ -292,7 +405,8 @@ void LCD_clearLetterArea(uint8_t startColumn)
     LCD_DATA_MODE();
 
     // Очистка области буквы (5 столбцов)
-    for (c = 0; c < 5; c++) {
+    for (c = 0; c < 5; c++)
+    {
         PB_ODR = 0b00000000; // Очистка столбца
         LCD_strobe();
     }
@@ -303,8 +417,10 @@ void LCD_clearBuffer(void)
 {
     uint8_t page, column;
 
-    for (page = 0; page < LCD_PAGES; page++) {
-        for (column = 0; column < LCD_COLUMNS; column++) {
+    for (page = 0; page < LCD_PAGES; page++)
+    {
+        for (column = 0; column < LCD_COLUMNS; column++)
+        {
             displayBuffer[page][column] = 0; // Очистка буфера
         }
     }
@@ -315,25 +431,27 @@ void LCD_updateDisplay(void)
 {
     uint8_t page, column;
 
-    for (page = 0; page < LCD_PAGES; page++) {
+    for (page = 0; page < LCD_PAGES; page++)
+    {
         // Обновление левой половины экрана (E1, столбцы 0–63)
         LCD_ENABLE_E1();  // Включить кристалл 1
         LCD_DISABLE_E2(); // Отключить кристалл 2
 
         // Установка страницы
-        LCD_CMD_MODE();       // Переключение в режим команд
-        LCD_SET_PAGE(page);   // Выбор страницы
-        LCD_strobe();         // Фиксируем команду
+        LCD_CMD_MODE();     // Переключение в режим команд
+        LCD_SET_PAGE(page); // Выбор страницы
+        LCD_strobe();       // Фиксируем команду
 
         // Установка начального столбца (Column 0)
-        LCD_SET_COLUMN(0);    // Выбор столбца 0
-        LCD_strobe();         // Фиксируем команду
+        LCD_SET_COLUMN(0); // Выбор столбца 0
+        LCD_strobe();      // Фиксируем команду
 
         // Переключение в режим данных
         LCD_DATA_MODE();
 
         // Отправка данных для левой половины (столбцы 0–63)
-        for (column = 0; column < 64; column++) {
+        for (column = 0; column < 64; column++)
+        {
             PB_ODR = displayBuffer[page][column]; // Отправляем данные из буфера
             LCD_strobe();
         }
@@ -343,23 +461,31 @@ void LCD_updateDisplay(void)
         LCD_DISABLE_E1(); // Отключить кристалл 1
 
         // Установка страницы
-        LCD_CMD_MODE();       // Переключение в режим команд
-        LCD_SET_PAGE(page);   // Выбор страницы
-        LCD_strobe();         // Фиксируем команду
+        LCD_CMD_MODE();     // Переключение в режим команд
+        LCD_SET_PAGE(page); // Выбор страницы
+        LCD_strobe();       // Фиксируем команду
 
         // Установка начального столбца (Column 0)
-        LCD_SET_COLUMN(0);    // Выбор столбца 0
-        LCD_strobe();         // Фиксируем команду
+        LCD_SET_COLUMN(0); // Выбор столбца 0
+        LCD_strobe();      // Фиксируем команду
 
         // Переключение в режим данных
         LCD_DATA_MODE();
 
         // Отправка данных для правой половины (столбцы 64–127)
-        for (column = 64; column < LCD_COLUMNS; column++) {
+        for (column = 64; column < LCD_COLUMNS; column++)
+        {
             PB_ODR = displayBuffer[page][column]; // Отправляем данные из буфера
             LCD_strobe();
         }
     }
+}
+
+// Очищает буфер и выводит пустой буфер на дисплей
+void LCD_clear(void)
+{
+    LCD_clearBuffer();
+    LCD_updateDisplay();
 }
 
 // Функция для отрисовки пикселя в буфере
@@ -367,7 +493,8 @@ void LCD_drawPixel(uint8_t x, uint8_t y, uint8_t value)
 {
     uint8_t page, bit;
 
-    if (x >= LCD_COLUMNS || y >= LCD_PAGES * 8) {
+    if (x >= LCD_COLUMNS || y >= LCD_PAGES * 8)
+    {
         return; // Выход за пределы экрана
     }
 
@@ -376,9 +503,12 @@ void LCD_drawPixel(uint8_t x, uint8_t y, uint8_t value)
     bit = y % 8;  // Бит в столбце
 
     // Установка или сброс бита
-    if (value) {
-        displayBuffer[page][x] |= (1 << bit);  // Установка бита
-    } else {
+    if (value)
+    {
+        displayBuffer[page][x] |= (1 << bit); // Установка бита
+    }
+    else
+    {
         displayBuffer[page][x] &= ~(1 << bit); // Сброс бита
     }
 }
@@ -389,14 +519,16 @@ void lineH(int y, int x0, int x1, uint8_t fill)
     int x;
 
     // Убедимся, что x0 <= x1
-    if (x0 > x1) {
+    if (x0 > x1)
+    {
         int temp = x0;
         x0 = x1;
         x1 = temp;
     }
 
     // Отрисовка линии
-    for (x = x0; x <= x1; x++) {
+    for (x = x0; x <= x1; x++)
+    {
         LCD_drawPixel(x, y, fill);
     }
 }
@@ -407,14 +539,16 @@ void lineV(int x, int y0, int y1, uint8_t fill)
     int y;
 
     // Убедимся, что y0 <= y1
-    if (y0 > y1) {
+    if (y0 > y1)
+    {
         int temp = y0;
         y0 = y1;
         y1 = temp;
     }
 
     // Отрисовка линии
-    for (y = y0; y <= y1; y++) {
+    for (y = y0; y <= y1; y++)
+    {
         LCD_drawPixel(x, y, fill);
     }
 }
@@ -425,13 +559,15 @@ void line(int x0, int y0, int x1, int y1, uint8_t fill)
     int dx, dy, sx, sy, err, e2;
 
     // Проверка на горизонтальную линию
-    if (x0 == x1) {
+    if (x0 == x1)
+    {
         lineV(x0, y0, y1, fill);
         return;
     }
 
     // Проверка на вертикальную линию
-    if (y0 == y1) {
+    if (y0 == y1)
+    {
         lineH(y0, x0, x1, fill);
         return;
     }
@@ -444,37 +580,99 @@ void line(int x0, int y0, int x1, int y1, uint8_t fill)
     err = dx - dy;
 
     // Отрисовка линии
-    while (1) {
+    while (1)
+    {
         LCD_drawPixel(x0, y0, fill);
 
         // Проверка на завершение
-        if (x0 == x1 && y0 == y1) {
+        if (x0 == x1 && y0 == y1)
+        {
             break;
         }
 
         e2 = err << 1;
 
-        if (e2 > -dy) {
+        if (e2 > -dy)
+        {
             err -= dy;
             x0 += sx;
         }
 
-        if (e2 < dx) {
+        if (e2 < dx)
+        {
             err += dx;
             y0 += sy;
         }
     }
 }
 
+/**
+ * @brief Попиксельно отрисовывает прямоугольник напрямую, без буферизации, с задержкой между каждым пикселем.
+ *
+ * @param x1 абцисса левого верхнего угла прямоугольника
+ * @param y1 ордината левого верхнего угла прямоугольника
+ * @param x2 абцисса правого нижнего угла прямоугольника
+ * @param y2 ордината правого нижнего угла прямоугольника
+ * @param speed скорость отрисовки
+ * 
+ * @return 0 - успех, 1 - ошибка координат
+ * 
+ * @note отрисовка происходит попиксельно по часовой стрелке, начиная от левого верхнего угла
+ * @note доп. задание - защита лабораторной работы.
+ */
+uint8_t defenceTask(uint8_t x1, uint8_t y1, uint8_t x2, uint8_t y2, uint8_t speed)
+{
+    uint8_t x, y;
+
+    // Проверка координат
+    if (x1 > x2 || y1 > y2 || x2 >= LCD_COLUMNS || y2 >= LCD_PAGES * 8)
+    {
+        return 1;
+    }
+
+    // Верхняя грань
+    for (x = x1; x <= x2; x++)
+    {
+        LCD_drawPixelDirect(x, y1);
+        delay(speed);
+    }
+
+    // Правая грань
+    if (y2 > y1)
+    {
+        for (y = y1 + 1; y <= y2; y++)
+        {
+            LCD_drawPixelDirect(x2, y);
+            delay(speed);
+        }
+    }
+
+    // Нижняя грань
+    if (x2 > x1)
+    {
+        for (x = x2 - 1; x >= x1; x--)
+        {
+            LCD_drawPixelDirect(x, y2);
+            delay(speed);
+        }
+    }
+
+    // Левая грань
+    if (y2 > y1 + 1)
+    {
+        for (y = y2 - 1; y > y1; y--)
+        {
+            LCD_drawPixelDirect(x1, y);
+            delay(speed);
+        }
+    }
+
+    return 0;
+}
+
 // Главная функция программы (точка входа)
 void main()
 {
-    uint8_t x0 = 31;
-    uint8_t y0 = 0;
-    uint8_t L = 64;
-    uint8_t h = 40;
-    uint8_t half_h = h / 2;
-    
     // Настройка портов PF и PB как выходных для управления дисплеем
     PF_DDR = ALL_PINS; // Направление порта F на вывод
     PF_CR1 = ALL_PINS; // Режим push-pull для порта F
@@ -486,17 +684,9 @@ void main()
 
     // Инициализация ЖК дисплея
     LCD_init();
-
-    // Очистка буфера
-    LCD_clearBuffer();
-
-    // Отрисовка фигуры первого варианта
-    line(x0, y0, x0, y0 + h, 1);                        // Левая сторона
-    line(x0, y0, x0 + L - half_h, y0, 1);               // Верхняя сторона
-    line(x0 + L - half_h, y0, x0 + L, y0 + half_h, 1);  // Скос
-    line(x0 + L, y0 + half_h, x0 + L, y0 + h, 1);       // Правая сторона
-    line(x0 + L, y0 + h, x0, y0 + h, 1);                // Нижняя сторона
-
-    // Обновление экрана
-    LCD_updateDisplay();
+    LCD_clear();
+    defenceTask(3, 3, 9, 9, 50);
+    defenceTask(12, 15, 32, 45, 0);
+    defenceTask(23, 2, 120, 40, 20);
+    defenceTask(117, 33, 125, 50, 15);
 }
